@@ -7,6 +7,7 @@ from secrets_ import POSTGRES_CREDENTIALS, POSTGRES_URL
 
 # %%
 # psycopg2 example
+# psycopg2 is low-level
 # cur.fetchall() - gets data from SELECT queries
 # conn.commit() - saves data from INSERT/UPDATE/DELETE/CREATE
 import psycopg2
@@ -22,6 +23,7 @@ pprint(records)
 
 #%%
 # sqlalchemy example (without pandas)
+# sqlalchemy is nice becuse it manages connection pools
 from sqlalchemy import create_engine, text
 import pandas as pd
 
@@ -35,6 +37,8 @@ pprint(records)
 
 #%%
 # sqlalchemy example (with pandas)
+# pandas does not support SQL UPDATE so its kind of useless
+# unless you're just doing read operations
 import pandas as pd
 connection = engine.connect()
 df = pd.read_sql_query(text("SELECT * FROM xusers"), connection)
