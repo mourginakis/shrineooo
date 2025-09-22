@@ -6,6 +6,9 @@ load_dotenv()
 ##############################################
 ## Secrets
 
+# CoinMarketCap API
+CMC_API_KEY            = os.environ.get('CMC_API_KEY',         '')
+
 # Postgres DB (Digital Ocean)
 POSTGRES_USERNAME      = os.environ.get('POSTGRES_USERNAME',   '')
 POSTGRES_PASSWORD      = os.environ.get('POSTGRES_PASSWORD',   '')
