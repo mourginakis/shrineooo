@@ -42,14 +42,52 @@ CREATE INDEX cmcmaster_platform_id_idx ON cmcmaster(platform_id);
 CREATE INDEX cmcmaster_first_historical_data_idx ON cmcmaster(first_historical_data);
 CREATE INDEX cmcmaster_status_idx ON cmcmaster(status);
 """
-    engine = create_engine(POSTGRES_URL)
     conn = engine.connect()
     conn.execute(text(sql))
     conn.commit()
     conn.close()
     print("Created table cmcmaster")
 
-_create_table_cmcmaster()
+# _create_table_cmcmaster()
+
+#%% ========================================
+
+
+# note: just query this with a view if you want slug, rank, etc.
+def _create_table_cmcnotes():
+    """Creates the notes table."""
+    sql = \
+"""
+CREATE TABLE cmcnotes (
+    id INT4 PRIMARY KEY,
+    note TEXT
+)
+"""
+    conn = engine.connect()
+    conn.execute(text(sql))
+    conn.commit()
+    conn.close()
+    print("Created table cmcnotes")
+
+# _create_table_cmcnotes()
+
+#%% ========================================
+
+
+def seed_cmcnotes():
+    """Seeds the notes table with the coin ids from the master table."""
+    sql = """
+    INSERT INTO cmcnotes (id)
+    SELECT id FROM cmcmaster
+    ON CONFLICT (id) DO NOTHING;
+    """
+    conn = engine.connect()
+    conn.execute(text(sql))
+    conn.commit()
+    conn.close()
+    print("Seeded table cmcnotes")
+
+# seed_cmcnotes()
 
 
 #%% ========================================
