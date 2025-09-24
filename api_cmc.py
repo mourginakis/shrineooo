@@ -3,6 +3,7 @@ import time
 import requests
 from pprint import pprint
 from secrets_ import CMC_API_KEY
+import pandas as pd
 
 # Coinmarketcap Universe Scraper
 # This endpoint is free with an account
@@ -15,6 +16,8 @@ URL = "https://pro-api.coinmarketcap.com/v1/cryptocurrency/map"
 
 
 def get_cmc_map():
+    """Dumps raw data from the CMC map API"""
+
     headers = {
         "Accept": "application/json",
         "X-CMC_PRO_API_KEY": CMC_API_KEY,
@@ -59,11 +62,10 @@ def get_cmc_map():
 
     return rows
 
-rows = get_cmc_map()
-
 #%%
 
 def destructure_row(row):
+    """CMC map raw data to structured data"""
     p = row.get("platform") or {}
     return {
         "id":                     row.get("id"),
@@ -82,13 +84,33 @@ def destructure_row(row):
         "platform_token_address": p.get("token_address"),
     }
 
-destructured_rows = [destructure_row(row) for row in rows]
 
+#%%
 
-# write the rows to a csv using pandas (cast rank to int?)
-import pandas as pd
-df = pd.DataFrame(destructured_rows)
-df.to_csv("cmcmap.csv", index=False)
-print("Wrote cmc_map.csv")
+def get_cmc_map1(writecsv=False) -> list[dict]:
+    """Returns a list of rows from the CMC map. Destructures it.
+    Includes:
+    - id
+    - rank
+    - name
+    - symbol
+    - slug
+    - is_active
+    - status
+    - first_historical_data
+    - last_historical_data
+    - platform_id
+    - platform_name
+    - platform_symbol
+    - platform_slug
+    - platform_token_address
+    """
+    rows = get_cmc_map()
+    rows = [destructure_row(row) for row in rows]
+    if writecsv:
+        df = pd.DataFrame(rows)
+        df.to_csv("cmcmap.csv", index=False)
+        print("Wrote cmc_map.csv")
+    return rows
 
 
