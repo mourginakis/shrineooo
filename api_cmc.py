@@ -1,4 +1,4 @@
-#%%
+#%% ========================================
 import time
 import requests
 from pprint import pprint
@@ -62,18 +62,18 @@ def get_cmc_map():
 
     return rows
 
-#%%
+#%% ========================================
 
 def destructure_row(row):
     """CMC map raw data to structured data"""
     p = row.get("platform") or {}
     return {
         "id":                     row.get("id"),
-        "rank":                   row.get("rank"),
+        "rank":                   int(row.get("rank")),
         "name":                   row.get("name"),
         "symbol":                 row.get("symbol"),
         "slug":                   row.get("slug"),
-        "is_active":              row.get("is_active"),
+        "is_active":              int(row.get("is_active")),
         "status":                 row.get("status"),
         "first_historical_data":  row.get("first_historical_data"),
         "last_historical_data":   row.get("last_historical_data"),
@@ -85,7 +85,7 @@ def destructure_row(row):
     }
 
 
-#%%
+#%% ========================================
 
 def get_cmc_map1(writecsv=False) -> list[dict]:
     """Returns a list of rows from the CMC map. Destructures it.
@@ -114,3 +114,4 @@ def get_cmc_map1(writecsv=False) -> list[dict]:
     return rows
 
 
+#%% ========================================
