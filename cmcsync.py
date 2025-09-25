@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from itertools import batched
 from sqlalchemy import create_engine, text
 import pandas as pd
-from secrets_ import POSTGRES_URL
+from src.secrets_ import POSTGRES_URL
 
 # defers DB connection until connect/execute
 engine = create_engine(POSTGRES_URL)
