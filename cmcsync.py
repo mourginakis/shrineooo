@@ -2,9 +2,11 @@
 import time
 from dataclasses import dataclass
 from itertools import batched
+import json
 from sqlalchemy import create_engine, text
 import pandas as pd
 from src.secrets_ import POSTGRES_URL
+from src.api_cmc import get_metadata
 
 # defers DB connection until connect/execute
 engine = create_engine(POSTGRES_URL)
@@ -33,7 +35,8 @@ CREATE TABLE cmcmaster (
     platform_name           TEXT,
     platform_symbol         TEXT,
     platform_slug           TEXT,
-    platform_token_address  TEXT
+    platform_token_address  TEXT,
+    urls                    JSONB
 );
 
 CREATE INDEX cmcmaster_rank_idx ON cmcmaster(rank);
@@ -142,7 +145,7 @@ SET
 
 
 #%% ========================================
-from api_cmc import get_cmc_map1
+from src.api_cmc import get_cmc_map1
 
 rows = get_cmc_map1()
 print(f"got {len(rows)} rows")
@@ -153,3 +156,63 @@ bulk_upsert_cmcmaster(rows)
 
 
 #%% ========================================
+
+from pprint import pprint
+
+def seed_urls():
+    """backfill cmcmaster.urls for active assets that are still NULL"""
+    sql = \
+"""
+SELECT id
+FROM cmcmaster
+WHERE status = 'active'
+AND urls IS NULL
+LIMIT 2
+"""
+    conn = engine.connect()
+    rows = conn.execute(text(sql))
+    rows = rows.fetchall()
+    ids = [row[0] for row in rows]
+
+    print(f"Found {len(ids)} ids")
+
+    if len(ids) == 0:
+        print("No ids found, exiting")
+        conn.close()
+        return None
+
+    sql = \
+"""
+UPDATE cmcmaster
+SET urls = CAST(:urls AS JSONB)
+WHERE id = :id
+"""
+    metadata = get_metadata(ids)
+
+    if len(metadata) != len(ids):
+        print(f"Metadata length {len(metadata)} != ids length {len(ids)}, exiting")
+        conn.close()
+        return None
+
+    payload = []
+    for d in metadata:
+        payload.append(
+            {"id": d['id'], "urls": json.dumps(d['urls'])}
+        )
+    conn.execute(text(sql), payload)
+    conn.commit()
+    conn.close()
+    print(f"Updated {len(payload)} urls")
+
+
+    pprint(ids)
+
+seed_urls()
+
+
+
+
+
+
+
+# %%
