@@ -167,7 +167,7 @@ SELECT id
 FROM cmcmaster
 WHERE status = 'active'
 AND urls IS NULL
-LIMIT 2
+LIMIT 200
 """
     conn = engine.connect()
     rows = conn.execute(text(sql))
@@ -203,11 +203,17 @@ WHERE id = :id
     conn.commit()
     conn.close()
     print(f"Updated {len(payload)} urls")
+    return len(payload)
 
 
-    pprint(ids)
 
-seed_urls()
+while True:
+    updated = seed_urls()
+    if updated == 0:
+        break
+    if updated == None:
+        break
+    time.sleep(5)
 
 
 
