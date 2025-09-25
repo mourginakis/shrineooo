@@ -2,7 +2,7 @@
 import time
 import requests
 from pprint import pprint
-from secrets_ import CMC_API_KEY
+from src.secrets_ import CMC_API_KEY
 import pandas as pd
 
 # Coinmarketcap Universe Scraper
@@ -115,3 +115,31 @@ def get_cmc_map1(writecsv=False) -> list[dict]:
 
 
 #%% ========================================
+
+# API docs:
+# https://coinmarketcap.com/api/documentation/v1/#operation/getV2CryptocurrencyInfo
+def get_metadata(cmcids: list[int]) -> list[dict]:
+    """Gets the metadata for a list of CoinMarketCap slugs."""
+
+    idstxt = ",".join(str(id) for id in cmcids)
+    url = "https://pro-api.coinmarketcap.com/v2/cryptocurrency/info"
+    headers = {
+        "Accept": "application/json",
+        "X-CMC_PRO_API_KEY": CMC_API_KEY,
+    }
+    params = {"id": idstxt}
+
+    response = requests.get(url, headers=headers, params=params, timeout=30)
+    response.raise_for_status()
+    payload = response.json()
+    data = payload.get("data", {})
+
+    urls = []
+    for d in data.values():
+        urls.append({'id': d['id'], 'urls': d['urls']})
+
+    return urls
+
+
+
+# %%
