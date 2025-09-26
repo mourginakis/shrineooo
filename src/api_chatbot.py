@@ -106,6 +106,27 @@ def gpt5_web_flex(input_text: str) -> str:
     return response.output_text
 
 
+def gpt5_web_flex_mini(input_text: str) -> str:
+    response = client.responses.create(
+        model="gpt-5-mini",
+        tools=[{"type": "web_search"}],
+        reasoning={"effort": "medium"},
+        input=input_text,
+        service_tier="flex",
+    )
+    # tabulate usage cost
+    calls      = sum([getattr(i, "type", "") == "web_search_call" 
+                      for i in (response.output or [])])
+    tokens_in  = response.usage.input_tokens
+    tokens_out = response.usage.output_tokens
+    cost_calls = calls * 10.00 / 1000
+    cost_in    = tokens_in / 1_000_000 * 0.125
+    cost_out   = tokens_out / 1_000_000 * 1.00
+    cost_total = cost_calls + cost_in + cost_out
+    print(f"price: ${cost_total:.4f}, calls: ${cost_calls:.4f}, input: ${cost_in:.4f}, output: ${cost_out:.4f}")
+    return response.output_text
+
+
 def gpt5(input_text: str) -> str:
     response = client.responses.create(
         model="gpt-5",
