@@ -6,19 +6,31 @@ import json
 from sqlalchemy import create_engine, text
 import pandas as pd
 from src.secrets_ import POSTGRES_URL
-from src.api_cmc import get_metadata
+from src.api_cmc import get_metadata, get_cmc_map1
 
 # defers DB connection until connect/execute
 engine = create_engine(POSTGRES_URL)
 
-#%% ========================================
+
+# This file is intended to be run periodically
+# The flow here is really simple:
+# CoinMarketCap API supplies a global map/list of all coins.
+# ===> v1/cryptocurrency/map
+# We create a master table, 'cmcmaster', which is just a verbatim dump
+# of the data from the API. This is our master source of truth.
+# We create a separate 'cmcnotes' table, which is intended to be our 
+# working copy for data processing. We fill this table with only active coins.
+# We create columns in cmcnotes table:
+# id, rank, name, slug, platform_slug, urls, note1, note2, note3...
+# We then hydrate the data, and use the CMC API (metadata endpoint)
+# to get the urls for each coin to aid in research.
 
 
 #%% ========================================
+# Create the tables
 
 def _create_table_cmcmaster():
-    """Creates the master CMC map table. 
-    You should never need to call this."""
+    """Creates the cmcmaster table. Holds the DDL"""
     sql = \
 """
 CREATE TABLE cmcmaster (
@@ -35,8 +47,7 @@ CREATE TABLE cmcmaster (
     platform_name           TEXT,
     platform_symbol         TEXT,
     platform_slug           TEXT,
-    platform_token_address  TEXT,
-    urls                    JSONB
+    platform_token_address  TEXT
 );
 
 CREATE INDEX cmcmaster_rank_idx ON cmcmaster(rank);
@@ -51,19 +62,20 @@ CREATE INDEX cmcmaster_status_idx ON cmcmaster(status);
     conn.close()
     print("Created table cmcmaster")
 
-# _create_table_cmcmaster()
 
-#%% ========================================
-
-
-# note: just query this with a view if you want slug, rank, etc.
 def _create_table_cmcnotes():
-    """Creates the notes table."""
+    """Creates the cmcnotes table."""
     sql = \
 """
 CREATE TABLE cmcnotes (
-    id INT4 PRIMARY KEY,
-    note TEXT
+    id                      INT4 PRIMARY KEY,
+    rank                    INT4,
+    name                    TEXT,
+    slug                    TEXT,
+    first_historical_data   TIMESTAMPTZ,
+    platform_slug           TEXT,
+    urls                    JSONB,
+    note                    TEXT
 )
 """
     conn = engine.connect()
@@ -72,28 +84,12 @@ CREATE TABLE cmcnotes (
     conn.close()
     print("Created table cmcnotes")
 
+# _create_table_cmcmaster()
 # _create_table_cmcnotes()
 
-#%% ========================================
-
-
-def seed_cmcnotes():
-    """Seeds the notes table with the coin ids from the master table."""
-    sql = """
-    INSERT INTO cmcnotes (id)
-    SELECT id FROM cmcmaster
-    ON CONFLICT (id) DO NOTHING;
-    """
-    conn = engine.connect()
-    conn.execute(text(sql))
-    conn.commit()
-    conn.close()
-    print("Seeded table cmcnotes")
-
-# seed_cmcnotes()
-
 
 #%% ========================================
+# ETL from CMC API into the cmcmaster table
 
 def bulk_upsert_cmcmaster(rows):
     BATCH_SIZE=1000
@@ -143,30 +139,53 @@ SET
     conn.close()
     print("Done!")
 
-
 #%% ========================================
-from src.api_cmc import get_cmc_map1
+# ETL from CMC API into the cmcmaster table
 
 rows = get_cmc_map1()
 print(f"got {len(rows)} rows")
-
-
-#%% ========================================
+#%%
 bulk_upsert_cmcmaster(rows)
 
 
 #%% ========================================
+# seed the cmcnotes table from the cmcmaster table
 
-from pprint import pprint
+def seed_cmcnotes():
+    """Seeds cmcnotes table with the coin ids from the cmcmaster table."""
+    sql = """
+    INSERT INTO cmcnotes (
+        id, rank, name, slug, first_historical_data, platform_slug
+    )
+    SELECT id, rank, name, slug, first_historical_data, platform_slug
+    FROM cmcmaster
+    WHERE status = 'active'
+    ON CONFLICT (id) DO UPDATE SET
+        rank = EXCLUDED.rank,
+        name = EXCLUDED.name,
+        slug = EXCLUDED.slug,
+        first_historical_data = EXCLUDED.first_historical_data,
+        platform_slug = EXCLUDED.platform_slug;
+    """
+    conn = engine.connect()
+    res = conn.execute(text(sql))
+    conn.commit()
+    conn.close()
+    print(f"Seeded table cmcnotes (affected {res.rowcount} rows)")
 
-def seed_urls():
-    """backfill cmcmaster.urls for active assets that are still NULL"""
+seed_cmcnotes()
+
+
+#%% ========================================
+# hydrate the cmcnotes table with the urls
+
+def hydrate_urls():
+    """hydrate cmcnotes.urls for rows that are still NULL"""
     sql = \
 """
 SELECT id
-FROM cmcmaster
-WHERE status = 'active'
-AND urls IS NULL
+FROM cmcnotes
+WHERE urls IS NULL
 LIMIT 200
 """
     conn = engine.connect()
@@ -183,7 +202,7 @@ LIMIT 200
 
     sql = \
 """
-UPDATE cmcmaster
+UPDATE cmcnotes
 SET urls = CAST(:urls AS JSONB)
 WHERE id = :id
 """
@@ -197,27 +216,23 @@ WHERE id = :id
     payload = []
     for d in metadata:
         payload.append(
-            {"id": d['id'], "urls": json.dumps(d['urls'])}
+            {"id": d['id'], "urls": json.dumps(d.get('urls') or {})}
         )
-    conn.execute(text(sql), payload)
+    res = conn.execute(text(sql), payload)
     conn.commit()
     conn.close()
-    print(f"Updated {len(payload)} urls")
+    print(f"Updated {res.rowcount} urls")
     return len(payload)
 
 
 
 while True:
-    updated = seed_urls()
+    updated = hydrate_urls()
     if updated == 0:
         break
     if updated == None:
         break
     time.sleep(5)
-
-
-
-
 
 
 
