@@ -95,7 +95,7 @@ SELECT *
 FROM cmcnotes
 WHERE webprint_gpt5mini IS NULL
 ORDER BY rank ASC
-LIMIT 2
+LIMIT 5
 """
     # connect and return a list[dict]
     conn = engine.connect()
@@ -105,9 +105,10 @@ LIMIT 2
     print(f"got: {str([row['name'] for row in rows])} fresh from db")
 
     for row in rows:
+        slugtxt = f"Platform-Slug: {row.get('platform_slug')}" if row.get('platform_slug') else ""
         prompt = f"""
         Please write a research report on the following coin:
-        {row['name']}
+        Name: {row['name']}. Slug: {row['slug']}. {slugtxt}
 
         I have aggregated a number of links that you can use as reference. Use my links to guide you,
         but favor your own web search to find information on your own. Make sure to look through many 
