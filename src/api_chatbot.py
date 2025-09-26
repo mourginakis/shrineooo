@@ -2,6 +2,7 @@
 from openai import OpenAI
 
 from pprint import pprint
+import time
 
 from src.secrets_ import OPENAI_API_KEY
 
@@ -40,6 +41,11 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 
 #%% ========================================
 
+
+def _destructure_usage(response) -> dict:
+    raise NotImplementedError()
+
+
 def gpt5_web(input_text: str) -> str:
     response = client.responses.create(
         model="gpt-5",
@@ -47,6 +53,16 @@ def gpt5_web(input_text: str) -> str:
         reasoning={"effort": "medium"},
         input=input_text
     )
+    # tabulate usage cost
+    calls      = sum([getattr(i, "type", "") == "web_search_call" 
+                      for i in (response.output or [])])
+    tokens_in  = response.usage.input_tokens
+    tokens_out = response.usage.output_tokens
+    cost_calls = calls * 10.00 / 1000
+    cost_in    = tokens_in / 1_000_000 * 1.25
+    cost_out   = tokens_out / 1_000_000 * 10.00
+    cost_total = cost_calls + cost_in + cost_out
+    print(f"price: ${cost_total:.4f}, calls: ${cost_calls:.4f}, input: ${cost_in:.4f}, output: ${cost_out:.4f}")
     return response.output_text
 
 
@@ -56,48 +72,15 @@ def gpt5(input_text: str) -> str:
         reasoning={"effort": "medium"},
         input=input_text
     )
-    input_tokens  = response.usage.input_tokens
-    output_tokens = response.usage.output_tokens
-    price_input = input_tokens / 1_000_000 * 1.25
-    price_output = output_tokens / 1_000_000 * 10.00
-    price_total = price_input + price_output
-    print(f"Price: ${price_total:.9f}, Input: ${price_input:.9f}, Output: ${price_output:.9f}")
+    # tabulate usage cost
+    tokens_in  = response.usage.input_tokens
+    tokens_out = response.usage.output_tokens
+    cost_in    = tokens_in / 1_000_000 * 1.25
+    cost_out   = tokens_out / 1_000_000 * 10.00
+    cost_total = cost_in + cost_out
+    print(f"price: ${cost_total:.4f}, input: ${cost_in:.4f}, output: ${cost_out:.4f}")
     return response.output_text
 
-
-story = gpt5("Write a short one-sentence bedtime story.")
-print(story)
-
-#%% ========================================
-prompt = \
-"""
-Look up the following info:
-visit each web link and give me a summary of each web link. do your best to be accurate. Load javascript if possible.
-Also, find other websites that you can actually load to learn more about the project from these other sites.
-(do research on the project from other sites of your choosing as well)
-{
-  "website": [
-    "https://equilibria.fi"
-  ],
-  "technical_doc": [
-    "https://docs.equilibria.fi"
-  ]
-}
-"""
-
-
-result = gpt5_web(prompt)
-
-#%%
-print(result)
-
-
-#%% ========================================
-
-
-
-from openai import OpenAI
-from time import sleep
 
 def o3_background(input_text: str) -> str:
     # background mode example:
@@ -108,22 +91,44 @@ def o3_background(input_text: str) -> str:
         background=True,
     )
 
-    while resp.status in {"queued", "in_progress"}:
-        print(f"Current status: {resp.status}")
-        sleep(2)
+    t0 = time.time()
+    while True:
+
+        dt = time.time() - t0
+        if resp.status not in {"queued", "in_progress"}:
+            break
+
+        time.sleep(10)
+        print(f"polling, elapsed: {dt:.2f}s")
         resp = client.responses.retrieve(resp.id)
 
-    print(f"Final status: {resp.status}\nOutput:\n{resp.output_text}")
-
+    print(f"Done! {resp.status}. elapsed: {dt:.2f}s")
     return resp.output_text
 
 
-prompt = "Write a short text about otters in space."
-response = o3_background(prompt)
+def o3_deep_research(input_text: str) -> str:
+    # deep research in background mode
+    # https://platform.openai.com/docs/guides/deep-research
+    resp = client.responses.create(
+        model="o3-deep-research",
+        input=input_text,
+        background=True,
+        tools=[{"type": "web_search"}],
+    )
 
+    t0 = time.time()
+    while True:
+
+        dt = time.time() - t0
+        if resp.status not in {"queued", "in_progress"}:
+            break
+
+        time.sleep(60)
+        print(f"polling, elapsed: {dt:.2f}s")
+        resp = client.responses.retrieve(resp.id)
+
+    print(f"Done! {resp.status}. elapsed: {dt:.2f}s")
+    return resp.output_text
 
 
 #%% ========================================
-
-# TODO: deep research:
-# https://platform.openai.com/docs/guides/deep-research
