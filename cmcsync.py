@@ -76,7 +76,7 @@ CREATE TABLE cmcnotes (
     platform_slug           TEXT,
     urls                    JSONB,
     note                    TEXT
-)
+);
 """
     conn = engine.connect()
     conn.execute(text(sql))
