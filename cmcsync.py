@@ -77,6 +77,8 @@ CREATE TABLE cmcnotes (
     urls                    JSONB,
     note                    TEXT
 );
+
+CREATE INDEX cmcnotes_rank_idx ON cmcnotes(rank);
 """
     conn = engine.connect()
     conn.execute(text(sql))
