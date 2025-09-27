@@ -1,6 +1,6 @@
 #%% ========================================
 from dataclasses import dataclass, asdict
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, bindparam, ARRAY, BIGINT
 import pandas as pd
 
 from src.secrets_ import POSTGRES_URL
@@ -67,7 +67,7 @@ CREATE TABLE xfollows (
 
 #%% ========================================
 
-def upsert_users(profiles: Profile) -> int:
+def _upsert_users(profiles: Profile) -> int:
     """Upsert a list of profiles into the xusers table."""
     if not profiles:
         return 0
@@ -97,7 +97,7 @@ def upsert_users(profiles: Profile) -> int:
 
 def upsert_branch(id: int, profiles: list[Profile]) -> tuple[int, int]:
     """Upserts a branch (existing root node -> new profiles + edges)
-    Checks first to make sure that the root profile exists."""
+    Fails if the root id isn't already in the database."""
     # Automatically fails if the root profile isn't in xusers:
     # the INSERT into xfollows will raise a foreign-key violation 
     # and the transaction will roll back
@@ -140,9 +140,36 @@ def upsert_branch(id: int, profiles: list[Profile]) -> tuple[int, int]:
 
 
 def get_intersection(ids: list[int]) -> list[Profile]:
-    raise NotImplementedError()
+    # this fn was written by chatgpt <3
+    if not ids:
+        return []
+    # dedup while preserving order
+    uniq_ids = list(dict.fromkeys(int(i) for i in ids))
+    stmt = text("""
+    with input_ids(source_id) as (
+      select unnest(:source_ids)
+    ),
+    common_targets as (
+      select f.target_id
+      from xfollows f
+      join input_ids i on i.source_id = f.source_id
+      group by f.target_id
+      having count(distinct f.source_id) = (select count(*) from input_ids)
+    )
+    select
+      u.id, u.screen_name, u.name, u.description,
+      u.followers_count, u.urlpinned, u.urlprofile
+    from common_targets ct
+    join xusers u on u.id = ct.target_id
+    order by u.followers_count desc nulls last, u.screen_name
+    """).bindparams(bindparam("source_ids", type_=ARRAY(BIGINT)))
+    conn = engine.connect()
+    try:
+        rs = conn.execute(stmt, {"source_ids": uniq_ids})
+        rows = [dict(r._mapping) for r in rs]
+    finally:
+        conn.close()
+    return [Profile(**row) for row in rows]
 
-
-    
 
 # %%
