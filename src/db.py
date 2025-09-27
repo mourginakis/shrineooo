@@ -172,4 +172,19 @@ def get_intersection(ids: list[int]) -> list[Profile]:
     return [Profile(**row) for row in rows]
 
 
-# %%
+#%% ========================================
+# this is necessary to seed the db with root node
+
+jackalxhunt = Profile(
+    id=1967223627314757632,
+    screen_name="jackalxhunt",
+    name="jackal",
+    description="master tracker",
+    followers_count=0,
+    urlpinned="",
+    urlprofile="https://x.com/jackalxhunt",
+)
+print(f"Updating db with jackalxhunt root node...", end="")
+nupdated = _upsert_users([jackalxhunt])
+print(f"done!")
+
