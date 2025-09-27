@@ -1,5 +1,4 @@
 #%% ========================================
-from dataclasses import dataclass
 import time
 import csv
 import re
@@ -9,7 +8,7 @@ from dataclasses import dataclass, asdict
 import requests
 from selenium import webdriver
 
-from secrets_ import XAPI_CURL
+from src.secrets_ import XAPI_CURL
 
 # Notes:
 # So even though Elon completely locked down the API and limits it to like seeing only 70 following,
