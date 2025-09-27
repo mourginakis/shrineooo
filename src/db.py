@@ -3,8 +3,8 @@ from dataclasses import dataclass, asdict
 from sqlalchemy import create_engine, text
 import pandas as pd
 
-from secrets_ import POSTGRES_URL
-from api_x import Profile
+from src.secrets_ import POSTGRES_URL
+from src.api_x import Profile
 
 engine = create_engine(POSTGRES_URL)
 
@@ -67,9 +67,10 @@ CREATE TABLE xfollows (
 
 #%% ========================================
 
-def upsert_users(profiles: Profile):
+def upsert_users(profiles: Profile) -> int:
+    """Upsert a list of profiles into the xusers table."""
     if not profiles:
-        return None
+        return 0
 
     rows = [asdict(p) for p in profiles]
 
@@ -93,3 +94,55 @@ def upsert_users(profiles: Profile):
     print(f"Upserted {len(rows)} users")
     return len(rows)
 
+
+def upsert_branch(id: int, profiles: list[Profile]) -> tuple[int, int]:
+    """Upserts a branch (existing root node -> new profiles + edges)
+    Checks first to make sure that the root profile exists."""
+    # Automatically fails if the root profile isn't in xusers:
+    # the INSERT into xfollows will raise a foreign-key violation 
+    # and the transaction will roll back
+    if not profiles:
+        return (0, 0)
+    # prepare data
+    profiles = [asdict(p) for p in profiles]
+    edges    = [{'source_id': id, 'target_id': p['id']} for p in profiles]
+    # prepare sql statements
+    sql1 = """
+    INSERT INTO xusers (
+        id, screen_name, name, description, followers_count, urlpinned, urlprofile
+    )
+    VALUES (:id, :screen_name, :name, :description, :followers_count, :urlpinned, :urlprofile)
+    ON CONFLICT (id) DO UPDATE SET
+        screen_name      = EXCLUDED.screen_name,
+        name             = EXCLUDED.name,
+        description      = EXCLUDED.description,
+        followers_count  = EXCLUDED.followers_count,
+        urlpinned        = EXCLUDED.urlpinned,
+        urlprofile       = EXCLUDED.urlprofile
+    """
+    sql2 = """
+    INSERT INTO xfollows (source_id, target_id)
+    VALUES (:source_id, :target_id)
+    ON CONFLICT DO NOTHING
+    """
+    conn = engine.connect()
+    trans = conn.begin()
+    try:
+        conn.execute(text(sql1), profiles)
+        conn.execute(text(sql2), edges)
+        trans.commit()
+    except Exception as e:
+        trans.rollback()
+        raise e
+    finally:
+        conn.close()
+    return (len(profiles), len(edges))
+
+
+def get_intersection(ids: list[int]) -> list[Profile]:
+    raise NotImplementedError()
+
+
+    
+
+# %%
