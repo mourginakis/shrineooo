@@ -44,10 +44,25 @@ from utils import parse_curl_headers_cookies
 # 4. Paste into curl_str
 # (it looks like this lasts >1 week at least)
 
+# EXAMPLE: this cURL is incomplete and will fail!
 curl_str = \
 """
+curl 'https://x.com/i/api/1.1/friends/list.json?include_followed_by=1&user_id=1312083283&count=100&cursor=1815661646446788134' \
+  -H 'accept: */*' \
+  -H 'accept-language: en-US,en;q=0.9' \
+  -H 'content-type: application/x-www-form-urlencoded; charset=UTF-8' \
+  -H 'priority: u=1, i' \
+  -H 'sec-ch-ua: "Not;A=Brand";v="99", "Google Chrome";v="139", "Chromium";v="139"' \
+  -H 'sec-ch-ua-mobile: ?0' \
+  -H 'sec-ch-ua-platform: "macOS"' \
+  -H 'sec-fetch-dest: empty' \
+  -H 'sec-fetch-mode: cors' \
+  -H 'sec-fetch-site: same-origin' \
+  -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36' \
+  -H 'x-twitter-auth-type: OAuth2Session'
 """
 
+# TODO: load curl_str from dotenv instead?
 headers, cookies = parse_curl_headers_cookies(curl_str)
 print(f"xapi: successfully parsed headers and cookies!")
 
