@@ -9,7 +9,7 @@ from dataclasses import dataclass, asdict
 import requests
 from selenium import webdriver
 
-from utils import parse_curl_headers_cookies
+from secrets_ import XAPI_CURL
 
 # Notes:
 # So even though Elon completely locked down the API and limits it to like seeing only 70 following,
@@ -62,8 +62,71 @@ curl 'https://x.com/i/api/1.1/friends/list.json?include_followed_by=1&user_id=13
   -H 'x-twitter-auth-type: OAuth2Session'
 """
 
+import re
+import shlex
+from http.cookies import SimpleCookie
+
+def parse_curl_headers_cookies(curl_text: str) -> tuple[dict, dict]:
+    """This function takes a raw copy and pasted cURL command and
+    parses it into a dictionary of headers and cookies (to be used
+    for requests)"""
+    # ChatGPT wrote this thank you chatgpt <3
+    # Join lines with trailing backslashes and strip the leading 'curl'
+    # quick explanation: this is a blackbox function that takes a raw cURL command
+    # and parses it into dictionaries of headers and cookies.
+
+    def parse_cookie_string(cookie_str: str) -> dict:
+        jar = SimpleCookie()
+        jar.load(cookie_str)
+        return {k: v.value for k, v in jar.items()}
+
+    s = re.sub(r"\\\s*\r?\n", " ", curl_text).strip()
+    if s.lower().startswith("curl "):
+        s = s[5:]
+
+    tokens = shlex.split(s, posix=True)
+
+    headers: dict[str, str] = {}
+    cookies: dict[str, str] = {}
+
+    def add_header(raw: str):
+        if ":" not in raw:
+            return
+        name, value = raw.split(":", 1)
+        name, value = name.strip(), value.strip()
+        if name.lower() == "cookie":
+            cookies.update(parse_cookie_string(value))
+        else:
+            headers[name] = value
+
+    def add_cookie(raw: str):
+        # If it's a cookie string (not a file path), parse it
+        if "=" in raw:
+            cookies.update(parse_cookie_string(raw))
+        # else: could be a cookie jar file path; out of scope here
+
+    i = 0
+    while i < len(tokens):
+        t = tokens[i]
+
+        # --header value or --header=value
+        if t in ("-H", "--header") and i + 1 < len(tokens):
+            add_header(tokens[i + 1]); i += 2; continue
+        if t.startswith("--header="):
+            add_header(t.split("=", 1)[1]); i += 1; continue
+
+        # --cookie value or --cookie=value
+        if t in ("-b", "--cookie") and i + 1 < len(tokens):
+            add_cookie(tokens[i + 1]); i += 2; continue
+        if t.startswith("--cookie="):
+            add_cookie(t.split("=", 1)[1]); i += 1; continue
+
+        i += 1
+
+    return headers, cookies
+
 # TODO: load curl_str from dotenv instead?
-headers, cookies = parse_curl_headers_cookies(curl_str)
+headers, cookies = parse_curl_headers_cookies(XAPI_CURL)
 print(f"xapi: successfully parsed headers and cookies!")
 
 
@@ -72,7 +135,7 @@ print(f"xapi: successfully parsed headers and cookies!")
 # user_id -> url
 # url -> user_id
 
-def get_user_id_selenium(url: str):
+def get_user_id_selenium(url: str) -> int:
     """renders js page with selenium quick and dirty.
     example: https://x.com/zxocw
     errors if regex is not found."""
@@ -89,10 +152,11 @@ def get_user_id_selenium(url: str):
     PAT = re.compile(r'https?://pbs\.twimg\.com/profile_banners/(\d+)(?:/|$)')
     m = PAT.search(src)
     userid = m.group(1)
+    userid = int(userid)
     return userid
 
 
-def user_id_to_url_selenium(id: int):
+def user_id_to_url_selenium(id: int) -> str:
     """quick and dirty selenium hack to get the url of a user.
     twitter seems to not redirect unless you have user-agent."""
     id = str(id)
@@ -189,3 +253,21 @@ def get_targets(id: int) -> list[Profile]:
         # wait to avoid suspicion
         time.sleep(2)
     return targets
+
+#%% ========================================
+# tests:
+
+# uid = get_user_id_selenium("https://x.com/realGeorgeHotz/")
+# print(uid)
+# print(type(uid))
+
+# url = user_id_to_url_selenium(uid)
+# print(url)
+# print(type(url))
+
+# result = get_targets(uid)
+# import json
+# with open('targets.json', 'w') as f:
+#     dicts = [asdict(p) for p in result]
+#     json.dump(dicts, f)
+
