@@ -145,7 +145,7 @@ def get_user_id_selenium(url: str) -> int:
     opts.add_argument('--headless')
     driver = webdriver.Chrome(options=opts)
     driver.get(url)
-    time.sleep(1)
+    time.sleep(3)
     src = driver.page_source
     driver.quit()
     PAT = re.compile(r'https?://pbs\.twimg\.com/profile_banners/(\d+)(?:/|$)')
@@ -232,6 +232,9 @@ def get_targets(id: int) -> list[Profile]:
         data = response.json()
         next_cursor_str = data["next_cursor_str"]
         users = data["users"]
+        # safety: make it raise if we're stacking more than n users
+        if len(targets) > 3000:
+            raise Exception("Upper limit of users reached")
         for user in users:
             profile = Profile(
                 id             =int(user['id_str']),
