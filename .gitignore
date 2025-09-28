@@ -1,6 +1,13 @@
-venv3.12/
+# MacOS stuff
 .DS_Store
 **/.DS_Store
+
+# Python stuff
+venv3.12/
 __pycache__/
+
+# Local stuff
 .env
 cmcmap.csv
+/local/*
+!/local/backupdb
