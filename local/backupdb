@@ -1,5 +1,59 @@
 #!/usr/bin/env bash
 
-echo "I don't do anything yet!"
+echo "backing up database..."
+
+# import all the passwords
+source ../.env
+
+# make the password available to (pg_dump)
+# this will get unset when the script finishes
+export PGPASSWORD="$POSTGRES_PASSWORD"
+export PGSSLMODE=require
+
+# define filename
+DATE_TAG=$(date +%F)
+FILENAME="shinies_${DATE_TAG}.dump"
+
+# Sanity check
+echo "${POSTGRES_USERNAME}@${POSTGRES_HOST}:${POSTGRES_PORT}"
+echo "out: ${FILENAME}"
+
+
+# annoying homebrew version stuff
+# > brew install postgresql@17
+PGDUMP="$(brew --prefix)/opt/postgresql@17/bin/pg_dump"
+PGRESTORE="$(brew --prefix)/opt/postgresql@17/bin/pg_restore"
+
+"$PGDUMP" \
+  -h "$POSTGRES_HOST"      \
+  -p "$POSTGRES_PORT"      \
+  -U "$POSTGRES_USERNAME"  \
+  -d "$POSTGRES_DATABASE"  \
+  --no-password -Fc -Z6    \
+  -f "$FILENAME"
+
+"$PGRESTORE" -l "$FILENAME" | head
+
+# script ends here
+exit 0
+
+
+# this is if the homebrew versioning worked out of the box
+
+# --- pg_dump options (what & why) ---
+# --no-password            → fail fast if no creds; with PGPASSWORD set, no prompt
+# -F c                     → dump in postgres custom binary format rather than sql
+# -Z 6                     → compression level 0–9; 6 squeezes fine
+# -f "$BACKUP_FILE"        → write the dump right here in this directory
+pg_dump \
+  -h "$POSTGRES_HOST"      \
+  -p "$POSTGRES_PORT"      \
+  -U "$POSTGRES_USERNAME"  \
+  -d "$POSTGRES_DATABASE"  \
+  --no-password -Fc -Z6    \
+  -f "$FILENAME"
+
+# quick sanity peek (lists dump contents)
+pg_restore -l "$FILENAME" | head
 
 
